@@ -2,7 +2,7 @@ use std::{collections::HashSet, sync::Arc};
 
 use holaplex_indexer::geyser::{Client, ClientArgs, IgnoreType};
 use indexer_core::{clap, prelude::*};
-use indexer_rabbitmq::{geyser, http_indexer, search_indexer, suffix::Suffix};
+use indexer_rabbitmq::{fungible_indexer, geyser, http_indexer, search_indexer, suffix::Suffix};
 
 #[derive(Debug, clap::Args)]
 struct Args {
@@ -56,6 +56,7 @@ fn main() {
                 http_indexer::QueueType::new(&receiver, &queue_suffix)?,
                 http_indexer::QueueType::new(&receiver, &queue_suffix)?,
                 search_indexer::QueueType::new(&receiver, &queue_suffix)?,
+                fungible_indexer::QueueType::new(&receiver, &queue_suffix)?,
                 client,
             )
             .await
