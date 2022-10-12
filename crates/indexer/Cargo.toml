@@ -49,6 +49,7 @@ geyser = [
   "indexer-rabbitmq/http-indexer",
   "indexer-rabbitmq/producer",
   "indexer-rabbitmq/search-indexer",
+  "indexer-rabbitmq/fungible-indexer",
 ]
 http = [
   "cid",
@@ -148,8 +149,8 @@ optional = true
 
 [dependencies.indexer-rabbitmq]
 package = "holaplex-indexer-rabbitmq"
-git = "https://github.com/holaplex/indexer-geyser-plugin"
-tag = "v0.6.0"
+git = "https://github.com/kfastov/holaplex-indexer-geyser-plugin"
+rev = "bdd590f5b3673e6e319a5a2e1a6d70ac78c378bd"
 
 # Workspace dependencies
 [dependencies.genostub]
