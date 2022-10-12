@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use indexer_core::clap;
-use indexer_rabbitmq::{http_indexer, search_indexer};
+use indexer_rabbitmq::{fungible_indexer, http_indexer, search_indexer};
 
 use crate::{db::Pool, prelude::*, reqwest, search_dispatch};
 
@@ -43,6 +43,7 @@ pub struct Client {
     http: reqwest::Client,
     http_prod: HttpProducers,
     search: search_dispatch::Client,
+    fungible_prod: fungible_indexer::Producer,
     dialect_api_endpoint: Option<String>,
     dialect_api_key: Option<String>,
 }
@@ -59,6 +60,7 @@ impl Client {
         meta_queue: http_indexer::QueueType<http_indexer::MetadataJson>,
         store_cfg_queue: http_indexer::QueueType<http_indexer::StoreConfig>,
         search_queue: search_indexer::QueueType,
+        fungible_queue: fungible_indexer::QueueType,
         Args {
             dialect_api_endpoint,
             dialect_api_key,
@@ -83,6 +85,9 @@ impl Client {
                     .context("Couldn't create AMQP store config producer")?,
             },
             search: search_dispatch::Client::new(conn, search_queue, search).await?,
+            fungible_prod: fungible_indexer::Producer::new(conn, fungible_queue)
+                .await
+                .context("Couldn't create AMQP fungible producer")?,
             dialect_api_endpoint,
             dialect_api_key,
         }))
@@ -138,6 +143,28 @@ impl Client {
             .write(http_indexer::StoreConfig {
                 config_address,
                 uri,
+            })
+            .await
+    }
+
+    /// Dispatch an AMQP message to the Fungible Token indexer
+    ///
+    /// # Errors
+    /// This function fails if the AMQP payload cannot be sent.
+    pub async fn dispatch_fungible_token(
+        &self,
+        owner: Pubkey,
+        token_account: Pubkey,
+        token_mint: Pubkey,
+        amount: u64,
+        // slot: u64,
+    ) -> Result<(), indexer_rabbitmq::Error> {
+        self.fungible_prod
+            .write(fungible_indexer::Message::FungibleTokenAccountUpdate {
+                owner,
+                mint: token_mint,
+                address: token_account,
+                amount,
             })
             .await
     }

@@ -15,12 +15,15 @@ pub async fn process(
 ) -> Result<()> {
     let pubkey = key.to_string();
 
-    let amount: i64 = token_account
-        .amount
-        .try_into()
-        .context("Token amount was too big to store")?;
-
-    if amount != 1 {
+    if token_account.amount != 1u64 {
+        client
+            .dispatch_fungible_token(
+                token_account.owner,
+                key,
+                token_account.mint,
+                token_account.amount,
+            )
+            .await?;
         return Ok(());
     }
 
