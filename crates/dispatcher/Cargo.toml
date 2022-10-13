@@ -22,7 +22,7 @@ smol-executor-trait = "2.1.0"
 [dependencies.indexer-rabbitmq]
 package = "holaplex-indexer-rabbitmq"
 git = "https://github.com/kfastov/holaplex-indexer-geyser-plugin"
-rev = "bdd590f5b3673e6e319a5a2e1a6d70ac78c378bd"
+rev = "da7af934be09ef42db08981fe0a6a8bedee464de"
 default-features = false
 features = ["job-runner", "producer"]
 

@@ -2,7 +2,7 @@ use indexer_core::{
     db::{insert_into, models::CurrentMetadataOwner, tables::current_metadata_owners, update},
     prelude::*,
 };
-use spl_token::state::Account as TokenAccount;
+use spl_token::state::{Account as TokenAccount, Mint as MintAccount};
 
 use super::Client;
 use crate::prelude::*;
@@ -86,5 +86,26 @@ pub async fn process(
         })
         .await
         .context("failed to insert token metadata owner!")?;
+    Ok(())
+}
+
+pub async fn process_mint(
+    client: &Client,
+    key: Pubkey,
+    mint_account: MintAccount,
+    _slot: u64,
+) -> Result<()> {
+    if !mint_account.is_initialized || mint_account.supply == 1 {
+        // Looks like NFT or uninitialized account, skip it
+        return Ok(());
+    }
+
+    let supply = mint_account.supply;
+    let decimals = mint_account.decimals;
+    let mint_authority = mint_account.mint_authority;
+
+    client
+        .dispatch_fungible_token_mint(mint_authority.into(), key, decimals, supply)
+        .await?;
     Ok(())
 }

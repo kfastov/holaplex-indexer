@@ -147,7 +147,7 @@ impl Client {
             .await
     }
 
-    /// Dispatch an AMQP message to the Fungible Token indexer
+    /// Dispatch an AMQP message to the Fungible Token indexer with a token account update
     ///
     /// # Errors
     /// This function fails if the AMQP payload cannot be sent.
@@ -165,6 +165,28 @@ impl Client {
                 mint: token_mint,
                 address: token_account,
                 amount,
+            })
+            .await
+    }
+
+    /// Dispatch an AMQP message to the Fungible Token indexer about a mint account update
+    ///
+    /// # Errors
+    /// This function fails if the AMQP payload cannot be sent.
+    pub async fn dispatch_fungible_token_mint(
+        &self,
+        mint_authority: Option<Pubkey>,
+        token_mint: Pubkey,
+        decimals: u8,
+        supply: u64,
+        // slot: u64,
+    ) -> Result<(), indexer_rabbitmq::Error> {
+        self.fungible_prod
+            .write(fungible_indexer::Message::FungibleMintAccountUpdate {
+                mint: token_mint,
+                authority: mint_authority,
+                decimals,
+                supply
             })
             .await
     }

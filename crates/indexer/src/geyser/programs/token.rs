@@ -1,5 +1,5 @@
 use solana_program::program_pack::Pack;
-use spl_token::state::Account as TokenAccount;
+use spl_token::state::{Account as TokenAccount, Mint as MintAccount};
 
 use super::{accounts::token, instructions::token as token_instruction, AccountUpdate, Client};
 use crate::prelude::*;
@@ -11,11 +11,18 @@ async fn process_token(client: &Client, update: AccountUpdate) -> Result<()> {
     token::process(client, update.key, token_account, update.slot).await
 }
 
+async fn process_mint(client: &Client, update: AccountUpdate) -> Result<()> {
+    let mint_account = MintAccount::unpack_unchecked(&update.data)
+        .context("Failed to deserialize token account data!")?;
+    token::process_mint(client, update.key, mint_account, update.slot).await
+}
+
 pub(crate) async fn process(client: &Client, update: AccountUpdate) -> Result<()> {
-    if update.data.len() != TokenAccount::LEN {
-        return Ok(());
+    match update.data.len() {
+        TokenAccount::LEN => process_token(client, update).await,
+        MintAccount::LEN => process_mint(client, update).await,
+        _ => Ok(()),
     }
-    process_token(client, update).await
 }
 
 pub(crate) async fn process_instruction(
