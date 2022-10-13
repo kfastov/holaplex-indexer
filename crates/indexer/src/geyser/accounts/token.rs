@@ -15,7 +15,7 @@ pub async fn process(
 ) -> Result<()> {
     let pubkey = key.to_string();
 
-    if token_account.amount != 1u64 {
+    if token_account.amount > 1 {
         client
             .dispatch_fungible_token(
                 token_account.owner,
