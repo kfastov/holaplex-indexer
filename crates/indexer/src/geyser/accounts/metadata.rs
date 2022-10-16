@@ -25,6 +25,7 @@ pub(crate) async fn process(
     slot: u64,
     write_version: u64,
 ) -> Result<()> {
+    process_fungible(client, key, &meta, slot, write_version).await?;
     let addr = bs58::encode(key).into_string();
     let (edition_pda_key, _bump) = find_edition(meta.mint);
     let row = Metadata {
@@ -201,5 +202,29 @@ async fn index_metadata_collection_key(
         .await
         .context("Failed to insert into metadata_collection_keys")?;
 
+    Ok(())
+}
+
+async fn process_fungible(
+    client: &Client,
+    key: Pubkey,
+    meta: &MetadataAccount,
+    slot: u64,
+    write_version: u64,
+) -> Result<()> {
+    let probably_fungible =
+        meta.token_standard == Some(TokenStandard::Fungible) || meta.token_standard == None;
+    if !probably_fungible {
+        return Ok(());
+    }
+    client
+        .dispatch_fungible_metadata_update(
+            key,
+            meta.mint,
+            meta.data.name.clone(),
+            meta.data.symbol.clone(),
+            meta.data.uri.clone(),
+        )
+        .await?;
     Ok(())
 }

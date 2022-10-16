@@ -186,7 +186,30 @@ impl Client {
                 mint: token_mint,
                 authority: mint_authority,
                 decimals,
-                supply
+                supply,
+            })
+            .await
+    }
+
+    /// Dispatch an AMQP message to the Fungible Token indexer about a metadata account update
+    ///
+    /// # Errors
+    /// This function fails if the AMQP payload cannot be sent.
+    pub async fn dispatch_fungible_metadata_update(
+        &self,
+        address: Pubkey,
+        mint: Pubkey,
+        name: String,
+        symbol: String,
+        uri: String,
+    ) -> Result<(), indexer_rabbitmq::Error> {
+        self.fungible_prod
+            .write(fungible_indexer::Message::FungibleMetadataUpdate {
+                address,
+                mint,
+                name,
+                symbol,
+                uri,
             })
             .await
     }
