@@ -221,9 +221,9 @@ async fn process_fungible(
         .dispatch_fungible_metadata_update(
             key,
             meta.mint,
-            meta.data.name.clone(),
-            meta.data.symbol.clone(),
-            meta.data.uri.clone(),
+            meta.data.name.trim_end_matches('\0').to_owned(),
+            meta.data.symbol.trim_end_matches('\0').to_owned(),
+            meta.data.uri.trim_end_matches('\0').to_owned(),
         )
         .await?;
     Ok(())
