@@ -16,7 +16,7 @@ fn to_bytes<T: std::fmt::Display, W: Write, N: FnOnce(&T) -> bool>(
 ) -> serialize::Result {
     use diesel::serialize::IsNull;
 
-    out.write_fmt(format_args!("{}", val))?;
+    out.write_fmt(format_args!("{val}"))?;
 
     Ok(if is_null(val) {
         IsNull::Yes
@@ -555,8 +555,14 @@ impl FromSql<VoteWeightV1, Pg> for VoteWeightV1Enum {
 /// Direction for sorting Collections query results by the "SORT BY" variable(s)
 #[derive(Debug, Clone, Copy, strum::EnumString, strum::Display)]
 pub enum CollectionSort {
-    /// sort results by floor price
-    FloorPrice,
+    /// sort results by floor price 1d
+    OneDayFloorPrice,
+
+    /// sort results by floor price 7d
+    SevenDayFloorPrice,
+
+    /// sort results by floor price 30d
+    ThirtyDayFloorPrice,
 
     /// sort results by 1 day volume
     OneDayVolume,
@@ -568,22 +574,13 @@ pub enum CollectionSort {
     ThirtyDayVolume,
 
     /// sort results by 1 day sales count
-    OneDaySalesCount,
+    OneDayListedCount,
 
     /// sort results by 7 days sales count
-    SevenDaySalesCount,
+    SevenDayListedCount,
 
     /// sort results by 30 days sales count
-    ThirtyDaySalesCount,
-
-    /// sort results by 1 day marketcap
-    OneDayMarketcap,
-
-    /// sort results by 7 day marketcap
-    SevenDayMarketcap,
-
-    /// sort results by 30 day marketcap
-    ThirtyDayMarketcap,
+    ThirtyDayListedCount,
 }
 
 /// `HPL Reward Center` payout operation

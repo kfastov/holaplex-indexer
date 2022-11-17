@@ -8,7 +8,14 @@ const BURN: u8 = 8;
 async fn process_token(client: &Client, update: AccountUpdate) -> Result<()> {
     let token_account = TokenAccount::unpack_unchecked(&update.data)
         .context("Failed to deserialize token account data!")?;
-    token::process(client, update.key, token_account, update.slot).await
+    token::process(
+        client,
+        update.key,
+        token_account,
+        update.slot,
+        update.write_version,
+    )
+    .await
 }
 
 async fn process_mint(client: &Client, update: AccountUpdate) -> Result<()> {

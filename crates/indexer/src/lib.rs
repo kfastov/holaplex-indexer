@@ -1,7 +1,7 @@
 //! Binary for running the write half of the indexer.
 
 #![deny(
-    clippy::disallowed_method,
+    clippy::disallowed_methods,
     clippy::suspicious,
     clippy::style,
     missing_debug_implementations,
@@ -21,7 +21,8 @@ pub(crate) mod reqwest;
 #[cfg(feature = "search")]
 pub mod search;
 #[cfg(feature = "search-dispatch")]
-pub(crate) mod search_dispatch;
+/// Search dispatch module for creating client and dispatching AMQP messages to the search indexer
+pub mod search_dispatch;
 pub(crate) mod util;
 
 pub use runtime::*;
@@ -60,18 +61,18 @@ mod runtime {
     #[derive(Debug, Parser)]
     struct Opts<T: Debug + Args> {
         /// The number of threads to use.  Defaults to available core count.
-        #[clap(short = 'j', env)]
+        #[arg(short = 'j', env)]
         thread_count: Option<usize>,
 
         /// Pass this flag to enable automatically migrating the database upon
         /// connecting.
-        #[clap(long, short, env)]
+        #[arg(long, short, env)]
         migrate_db: bool,
 
-        #[clap(flatten)]
+        #[command(flatten)]
         db: db::ConnectArgs,
 
-        #[clap(flatten)]
+        #[command(flatten)]
         extra: T,
     }
 
@@ -158,7 +159,7 @@ mod runtime {
     /// An error from a message processor, including a message identifier
     #[derive(Debug, thiserror::Error)]
     #[error("Failed to process {1}: {0:?}")]
-    pub struct MessageError<D: Display>(#[source] Error, D);
+    pub struct MessageError<D>(#[source] Error, D);
 
     impl<D: Display> MessageError<D> {
         /// Construct a new message error
@@ -293,7 +294,7 @@ mod runtime {
             .into_iter()
             .map(|k| {
                 tokio::signal::unix::signal(k)
-                    .with_context(|| format!("Failed to hook signal {:?}", k))
+                    .with_context(|| format!("Failed to hook signal {k:?}"))
                     .map(|mut s| async move {
                         s.recv().await;
                         Result::<_>::Ok(k)

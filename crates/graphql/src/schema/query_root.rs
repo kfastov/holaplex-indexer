@@ -1,7 +1,11 @@
-use indexer_core::db::{
-    self,
-    expression::dsl::all,
-    queries::{self, collections::TrendingQueryOptions, feed_event::EventType},
+use enums::{CollectionInterval, CollectionSort, OrderDirection};
+use indexer_core::{
+    db::{
+        self,
+        expression::dsl::all,
+        queries::{self, collections::TrendingQueryOptions, feed_event::EventType},
+    },
+    pubkeys,
 };
 use objects::{
     ah_listing::AhListing,
@@ -10,6 +14,7 @@ use objects::{
     bonding_change::EnrichedBondingChange,
     candy_machine::CandyMachine,
     chart::PriceChart,
+    collection::{CollectionDocument, CollectionTrend},
     creator::Creator,
     denylist::Denylist,
     feed_event::FeedEvent,
@@ -17,28 +22,26 @@ use objects::{
     graph_connection::GraphConnection,
     listing::{Listing, ListingColumns, ListingRow},
     marketplace::Marketplace,
-    nft::{Collection, MetadataJson, Nft, NftActivity, NftCount, NftCreator, NftsStats},
+    nft::{CollectionNFT, MetadataJson, Nft, NftActivity, NftCount, NftCreator, NftsStats},
     profile::{ProfilesStats, TwitterProfile},
     spl_governance::{
         Governance, Proposal, ProposalV2, Realm, SignatoryRecord, TokenOwnerRecord, VoteRecord,
     },
     storefront::{Storefront, StorefrontColumns},
-    wallet::Wallet,
+    wallet::{AssociatedTokenAccount, Wallet},
 };
 use scalars::{markers::TokenMint, PublicKey};
 use serde_json::Value;
 use tables::{
-    auction_caches, auction_datas, auction_datas_ext, auction_houses, bid_receipts,
-    candy_machine_datas, candy_machines, current_metadata_owners, geno_habitat_datas, governances,
-    graph_connections, metadata_jsons, metadatas, realms, signatory_records, store_config_jsons,
-    storefronts, token_owner_records, twitter_handle_name_services, wallet_totals,
+    associated_token_accounts, auction_caches, auction_datas, auction_datas_ext, auction_houses,
+    bid_receipts, candy_machine_datas, candy_machines, current_metadata_owners, geno_habitat_datas,
+    governances, graph_connections, metadata_jsons, metadatas, realms, signatory_records,
+    store_config_jsons, storefronts, token_owner_records, twitter_handle_name_services,
+    wallet_totals,
 };
 
-use super::{
-    enums::{CollectionInterval, CollectionSort, OrderDirection},
-    objects::nft::CollectionTrend,
-    prelude::*,
-};
+use super::prelude::*;
+
 pub struct QueryRoot;
 
 #[derive(GraphQLInputObject, Clone, Debug)]
@@ -328,15 +331,11 @@ impl QueryRoot {
         }
         let conn = context.shared.db.get().context("failed to connect to db")?;
         let from: Vec<String> = from
-            .unwrap_or_else(Vec::new)
+            .unwrap_or_default()
             .into_iter()
             .map(Into::into)
             .collect();
-        let to: Vec<String> = to
-            .unwrap_or_else(Vec::new)
-            .into_iter()
-            .map(Into::into)
-            .collect();
+        let to: Vec<String> = to.unwrap_or_default().into_iter().map(Into::into).collect();
 
         let rows = queries::graph_connection::connections(&conn, from, to, limit, offset)?;
 
@@ -477,7 +476,11 @@ impl QueryRoot {
             limit: limit.try_into()?,
             offset: offset.try_into()?,
         };
-        let nfts = queries::metadatas::list(&conn, query_options)?;
+        let nfts = queries::metadatas::list(
+            &conn,
+            query_options,
+            pubkeys::OPENSEA_AUCTION_HOUSE.to_string(),
+        )?;
 
         nfts.into_iter()
             .map(TryInto::try_into)
@@ -566,6 +569,28 @@ impl QueryRoot {
 
         futures_util::future::try_join_all(addresses.into_iter().map(|a| context.wallet(a)))
             .await
+            .map_err(Into::into)
+    }
+
+    async fn associated_token_accounts(
+        &self,
+        context: &AppContext,
+        #[graphql(description = "Token mint addresses")] mints: Vec<PublicKey<TokenMint>>,
+        #[graphql(description = "Query limit")] limit: i32,
+        #[graphql(description = "Query offset")] offset: i32,
+    ) -> FieldResult<Vec<AssociatedTokenAccount>> {
+        let conn = context.shared.db.get()?;
+
+        associated_token_accounts::table
+            .select(associated_token_accounts::all_columns)
+            .filter(associated_token_accounts::mint.eq(any(mints)))
+            .offset(offset.into())
+            .limit(limit.into())
+            .load::<models::AssociatedTokenAccount>(&conn)
+            .context("Failed to load token accounts")?
+            .into_iter()
+            .map(AssociatedTokenAccount::try_from)
+            .collect::<Result<_, _>>()
             .map_err(Into::into)
     }
 
@@ -769,16 +794,16 @@ impl QueryRoot {
 
     #[graphql(
         description = "Returns collection data along with collection activities",
-        arguments(address(description = "Collection address"))
+        arguments(id(description = "Collection ID"))
     )]
     async fn collection(
         &self,
         context: &AppContext,
-        address: String,
-    ) -> FieldResult<Option<Collection>> {
+        id: String,
+    ) -> FieldResult<Option<objects::collection::Collection>> {
         context
             .generic_collection_loader
-            .load(address)
+            .load(id)
             .await
             .map_err(Into::into)
     }
@@ -816,28 +841,24 @@ impl QueryRoot {
             (CollectionInterval::Thirty, CollectionSort::Volume) => {
                 db::custom_types::CollectionSort::ThirtyDayVolume
             },
-            (CollectionInterval::One, CollectionSort::NumberSales) => {
-                db::custom_types::CollectionSort::OneDaySalesCount
+            (CollectionInterval::One, CollectionSort::NumberListed) => {
+                db::custom_types::CollectionSort::OneDayListedCount
             },
-            (CollectionInterval::Seven, CollectionSort::NumberSales) => {
-                db::custom_types::CollectionSort::SevenDaySalesCount
+            (CollectionInterval::Seven, CollectionSort::NumberListed) => {
+                db::custom_types::CollectionSort::SevenDayListedCount
             },
-            (CollectionInterval::Thirty, CollectionSort::NumberSales) => {
-                db::custom_types::CollectionSort::ThirtyDaySalesCount
+            (CollectionInterval::Thirty, CollectionSort::NumberListed) => {
+                db::custom_types::CollectionSort::ThirtyDayListedCount
             },
-            (CollectionInterval::One, CollectionSort::Marketcap) => {
-                db::custom_types::CollectionSort::OneDayMarketcap
+            (CollectionInterval::One, CollectionSort::Floor) => {
+                db::custom_types::CollectionSort::OneDayFloorPrice
             },
-            (CollectionInterval::Seven, CollectionSort::Marketcap) => {
-                db::custom_types::CollectionSort::SevenDayMarketcap
+            (CollectionInterval::Seven, CollectionSort::Floor) => {
+                db::custom_types::CollectionSort::SevenDayFloorPrice
             },
-            (CollectionInterval::Thirty, CollectionSort::Marketcap) => {
-                db::custom_types::CollectionSort::ThirtyDayMarketcap
+            (CollectionInterval::Thirty, CollectionSort::Floor) => {
+                db::custom_types::CollectionSort::ThirtyDayFloorPrice
             },
-            (
-                CollectionInterval::One | CollectionInterval::Seven | CollectionInterval::Thirty,
-                CollectionSort::Floor,
-            ) => db::custom_types::CollectionSort::FloorPrice,
         };
 
         let collections = queries::collections::trends(&conn, TrendingQueryOptions {
@@ -882,7 +903,7 @@ impl QueryRoot {
         end_date: DateTime<Utc>,
         limit: i32,
         offset: i32,
-    ) -> FieldResult<Vec<Collection>> {
+    ) -> FieldResult<Vec<CollectionNFT>> {
         let conn = context.shared.db.get().context("failed to connect to db")?;
 
         let addresses: Option<Vec<String>> = match term {
@@ -951,7 +972,7 @@ impl QueryRoot {
         end_date: DateTime<Utc>,
         limit: i32,
         offset: i32,
-    ) -> FieldResult<Vec<Collection>> {
+    ) -> FieldResult<Vec<CollectionNFT>> {
         let conn = context.shared.db.get().context("failed to connect to db")?;
 
         let addresses: Option<Vec<String>> = match term {
@@ -1001,24 +1022,24 @@ impl QueryRoot {
         #[graphql(description = "Search term")] term: String,
         #[graphql(description = "Query limit")] limit: i32,
         #[graphql(description = "Query offset")] offset: i32,
-    ) -> FieldResult<Vec<MetadataJson>> {
+    ) -> FieldResult<Vec<CollectionDocument>> {
         let search = &context.shared.search;
 
         let query_result = search
-            .index("collections")
+            .index("mr-collections")
             .search()
             .with_query(&term)
             .with_offset(offset.try_into()?)
             .with_limit(limit.try_into()?)
             .execute::<Value>()
             .await
-            .context("failed to load search result for collections")?
+            .context("failed to load search result for mr collections")?
             .hits;
 
         Ok(query_result
             .into_iter()
             .map(|r| r.result.into())
-            .collect::<Vec<MetadataJson>>())
+            .collect::<Vec<CollectionDocument>>())
     }
 
     #[graphql(description = "returns profiles matching the search term")]
@@ -1430,14 +1451,9 @@ impl QueryRoot {
         #[graphql(description = "Filter on Community mints")] community_mints: Option<
             Vec<PublicKey<TokenMint>>,
         >,
+        #[graphql(description = "Limit for query")] limit: Option<i32>,
+        #[graphql(description = "Offset for query")] offset: Option<i32>,
     ) -> FieldResult<Vec<Realm>> {
-        if addresses.is_none() && community_mints.is_none() {
-            return Err(FieldError::new(
-                "You must supply atleast one filter",
-                graphql_value!({ "Filters": "addresses: Vec<PublicKey<Realm>>, communityMints: Vec<PublicKey<TokenMint>>" }),
-            ));
-        }
-
         let conn = context.shared.db.get()?;
 
         let mut query = realms::table.select(realms::all_columns).into_boxed();
@@ -1451,6 +1467,8 @@ impl QueryRoot {
         }
 
         query
+            .limit(limit.unwrap_or(25).into())
+            .offset(offset.unwrap_or(0).into())
             .load::<models::Realm>(&conn)
             .context("Failed to load spl governance realms.")?
             .into_iter()

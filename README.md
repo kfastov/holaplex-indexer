@@ -52,7 +52,7 @@ To set up a development environment, you will need `rustup`, Cargo, Docker,
 installed with the `postgres` feature, which can be done like so:
 
 ```sh
-$ cargo install diesel_cli --no-default-features --features postgres
+$ cargo install diesel_cli --version 1.4.1 --no-default-features --features postgres
 ```
 
 Installing diesel will require `libpq` to be on your system (`brew install
@@ -119,6 +119,8 @@ $ cargo run --bin holaplex-indexer-http --features http -- --entity store-config
 All services will need to be configured to run with the same settings that the
 Geyser plugin was configured with, otherwise they will receive no messages or
 simply fail to start.
+
+i.e :  if your  geyser config json has `"network": "mainnet"` and `"startup": null`, then the exchange name will be `mainnet.startup-all.accounts` and to connect to it you'll need to pass `--network mainnet` `--startup all` to the geyser-consumer binary (or put `NETWORK=mainnet` and `STARTUP=all` in `.env.local`)
 
 ## Running the GraphQL Server
 

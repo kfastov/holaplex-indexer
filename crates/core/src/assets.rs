@@ -167,7 +167,7 @@ impl<'a> AssetIdentifier<'a> {
 
     fn fingerprint_ipfs(cid: &Cid, path: &str) -> Vec<u8> {
         if path.is_empty() {
-            use cid::multihash::StatefulHasher;
+            use cid::multihash::Hasher;
 
             let mut h = cid::multihash::Sha2_256::default();
 
@@ -184,7 +184,7 @@ impl<'a> AssetIdentifier<'a> {
         if path.is_empty() {
             Cow::Borrowed(&txid.0)
         } else {
-            use cid::multihash::StatefulHasher;
+            use cid::multihash::Hasher;
 
             let mut h = cid::multihash::Sha2_256::default();
 
@@ -196,7 +196,7 @@ impl<'a> AssetIdentifier<'a> {
     }
 
     fn fingerprint_indeterminate(url: &Url) -> Vec<u8> {
-        use cid::multihash::StatefulHasher;
+        use cid::multihash::Hasher;
 
         let mut h = cid::multihash::Sha3_256::default();
 
@@ -239,11 +239,11 @@ mod cdn {
     #[derive(Debug, Clone, clap::Args)]
     pub struct AssetProxyArgs {
         /// Endpoint for Holaplex asset CDN
-        #[clap(long, env)]
+        #[arg(long, env)]
         asset_proxy_endpoint: String,
 
         /// Number of replicas available to proxy asset requests to
-        #[clap(long, env)]
+        #[arg(long, env)]
         asset_proxy_count: u8,
     }
 
@@ -300,7 +300,7 @@ mod cdn {
             (None, None, _) => Ok(None),
             (Some((txid, path)), None, _)
             | (Some((txid, path)), Some(_), Some(AssetHint::Arweave)) => {
-                let txid = base64::encode_config(&txid.0, base64::URL_SAFE_NO_PAD);
+                let txid = base64::encode_config(txid.0, base64::URL_SAFE_NO_PAD);
 
                 format_impl(
                     args,
@@ -351,6 +351,19 @@ mod cdn {
             .unwrap_or_else(|_| unreachable!())
             .extend(["twitter", screen_name.as_ref()]);
 
+        Ok(url)
+    }
+    /// Get the proxy URL parameters for non-permaweb assets
+    ///
+    /// # Errors
+    /// This function fails if the asset proxy configured by `args` has an
+    /// invalid URL
+
+    #[inline]
+    pub fn proxy_non_permaweb_url(args: &AssetProxyArgs, endpoint: impl AsRef<str>) -> Result<Url> {
+        let mut url = Url::parse(&args.asset_proxy_endpoint.replace("[n]", ""))
+            .context("Invalid asset proxy URL")?;
+        url.query_pairs_mut().append_pair("url", endpoint.as_ref());
         Ok(url)
     }
 

@@ -33,13 +33,16 @@ pub enum MessageId {
     AccountUpdate(Pubkey),
     /// An instruction from the program with the given key
     Instruction(Pubkey),
+    /// A status update of the slot with the given ID
+    SlotStatus(u64),
 }
 
 impl fmt::Display for MessageId {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::AccountUpdate(k) => write!(f, "account update for {}", k),
-            Self::Instruction(p) => write!(f, "instruction from program {}", p),
+            Self::AccountUpdate(k) => write!(f, "account update for {k}"),
+            Self::Instruction(p) => write!(f, "instruction from program {p}"),
+            &Self::SlotStatus(s) => write!(f, "status update for slot {s}"),
         }
     }
 }
@@ -60,6 +63,7 @@ pub async fn process_message<H: std::hash::BuildHasher>(
     let id = match msg {
         Message::AccountUpdate(ref u) => MessageId::AccountUpdate(u.key),
         Message::InstructionNotify(ref i) => MessageId::Instruction(i.program),
+        Message::SlotStatusUpdate(ref s) => MessageId::SlotStatus(s.slot),
     };
 
     match msg {
@@ -140,6 +144,10 @@ pub async fn process_message<H: std::hash::BuildHasher>(
             programs::auction_house::process_instruction(client, &ins.data, &ins.accounts, ins.slot)
                 .await
         },
+        Message::InstructionNotify(ins) if ins.program == pubkeys::REWARD_CENTER => {
+            programs::reward_center::process_instruction(client, &ins.data, &ins.accounts, ins.slot)
+                .await
+        },
         Message::InstructionNotify(ins) if ins.program == pubkeys::ME_HAUS => {
             programs::magic_eden_haus::process_instruction(
                 client,
@@ -154,6 +162,12 @@ pub async fn process_message<H: std::hash::BuildHasher>(
         },
         Message::InstructionNotify(ins) if ins.program == pubkeys::MAPLE => {
             programs::maple::process_instruction(client, &ins.data, &ins.accounts, ins.slot).await
+        },
+
+        // Other
+        Message::SlotStatusUpdate(slot) => {
+            debug!("Slot status update: {:?}", slot);
+            Ok(())
         },
 
         // Fallbacks

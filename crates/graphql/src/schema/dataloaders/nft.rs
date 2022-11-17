@@ -1,16 +1,18 @@
-use indexer_core::db::{queries, tables::metadata_collection_keys};
+use indexer_core::db::{queries, tables::last_sold_metadatas};
 use objects::{
+    collection::Collection,
     listing_receipt::ListingReceipt,
-    nft::{Collection, Nft, NftActivity, NftAttribute, NftCreator, NftFile, NftOwner},
+    nft::{Nft, NftActivity, NftAttribute, NftCreator, NftFile, NftOwner},
     purchase_receipt::PurchaseReceipt,
 };
 use scalars::{markers::TokenMint, PublicKey};
 use tables::{
-    attributes, current_metadata_owners, files, listing_receipts, metadata_creators,
-    metadata_jsons, metadatas, purchase_receipts, twitter_handle_name_services,
+    attributes, collection_mints, collections, current_metadata_owners, files, listing_receipts,
+    metadata_creators, metadata_jsons, metadatas, purchase_receipts, twitter_handle_name_services,
 };
 
 use super::prelude::*;
+use crate::schema::{objects::nft::LastSale, scalars::I64};
 
 #[async_trait]
 impl TryBatchFn<PublicKey<Nft>, Vec<NftAttribute>> for Batcher {
@@ -33,36 +35,77 @@ impl TryBatchFn<PublicKey<Nft>, Vec<NftAttribute>> for Batcher {
 }
 
 #[async_trait]
-impl TryBatchFn<PublicKey<Nft>, Option<Collection>> for Batcher {
+impl TryBatchFn<PublicKey<TokenMint>, Option<Collection>> for Batcher {
     async fn load(
         &mut self,
-        addresses: &[PublicKey<Nft>],
-    ) -> TryBatchMap<PublicKey<Nft>, Option<Collection>> {
+        addresses: &[PublicKey<TokenMint>],
+    ) -> TryBatchMap<PublicKey<TokenMint>, Option<Collection>> {
         let conn = self.db()?;
 
-        let rows: Vec<(String, models::Nft)> = metadatas::table
-            .left_join(
-                metadata_jsons::table.on(metadatas::address.eq(metadata_jsons::metadata_address)),
-            )
+        let rows: Vec<(String, models::Collection)> = collections::table
             .inner_join(
-                current_metadata_owners::table
-                    .on(current_metadata_owners::mint_address.eq(metadatas::mint_address)),
+                collection_mints::table.on(collection_mints::collection_id.eq(collections::id)),
             )
-            .inner_join(
-                metadata_collection_keys::table
-                    .on(metadata_collection_keys::collection_address.eq(metadatas::mint_address)),
-            )
-            .filter(metadata_collection_keys::metadata_address.eq(any(addresses)))
-            .select((
-                metadata_collection_keys::metadata_address,
-                queries::metadatas::NFT_COLUMNS,
-            ))
+            .filter(collection_mints::mint.eq(any(addresses)))
+            .select((collection_mints::mint, collections::all_columns))
             .load(&conn)
-            .context("Failed to load Collection NFTs")?;
+            .context("Failed to load NFT collection(s)")?;
 
         Ok(rows
             .into_iter()
-            .map(|(addr, nft)| (addr, nft.try_into()))
+            .map(|(addr, collection)| (addr, collection.try_into()))
+            .batch(addresses))
+    }
+}
+
+#[derive(Debug, Clone)]
+#[repr(transparent)]
+pub struct MoonrankRank(pub I64);
+
+impl From<i64> for MoonrankRank {
+    fn from(value: i64) -> Self {
+        Self(value.into())
+    }
+}
+
+#[async_trait]
+impl TryBatchFn<PublicKey<TokenMint>, Option<MoonrankRank>> for Batcher {
+    async fn load(
+        &mut self,
+        addresses: &[PublicKey<TokenMint>],
+    ) -> TryBatchMap<PublicKey<TokenMint>, Option<MoonrankRank>> {
+        let conn = self.db()?;
+
+        let rows: Vec<(String, i64)> = collection_mints::table
+            .filter(collection_mints::mint.eq(any(addresses)))
+            .select((collection_mints::mint, collection_mints::rank))
+            .load(&conn)
+            .context("Failed to load NFT moonrank rank(s)")?;
+
+        Ok(rows
+            .into_iter()
+            .map(|(mint, rank)| (mint, MoonrankRank::from(rank)))
+            .batch(addresses))
+    }
+}
+
+#[async_trait]
+impl TryBatchFn<PublicKey<Nft>, Option<LastSale>> for Batcher {
+    async fn load(
+        &mut self,
+        addresses: &[PublicKey<Nft>],
+    ) -> TryBatchMap<PublicKey<Nft>, Option<LastSale>> {
+        let conn = self.db()?;
+
+        let rows: Vec<models::LastSale> = last_sold_metadatas::table
+            .filter(last_sold_metadatas::metadata.eq(any(addresses)))
+            .select(last_sold_metadatas::all_columns)
+            .load(&conn)
+            .context("Failed to load NFT's last sale")?;
+
+        Ok(rows
+            .into_iter()
+            .map(|last_sale| (last_sale.metadata.clone(), last_sale.try_into()))
             .batch(addresses))
     }
 }
