@@ -72,6 +72,9 @@ pub async fn process_message<H: std::hash::BuildHasher>(
         Message::AccountUpdate(update) if update.owner == pubkeys::REWARD_CENTER => {
             programs::reward_center::process(client, update).await
         },
+        Message::AccountUpdate(update) if update.owner == pubkeys::MAPLE => {
+            programs::maple::process(client, update).await
+        },
         Message::AccountUpdate(update) if update.owner == pubkeys::AUCTION => {
             programs::auction::process(client, update).await
         },
@@ -148,6 +151,9 @@ pub async fn process_message<H: std::hash::BuildHasher>(
         },
         Message::InstructionNotify(ins) if ins.program == pubkeys::TOKEN => {
             programs::token::process_instruction(client, &ins.data, &ins.accounts, ins.slot).await
+        },
+        Message::InstructionNotify(ins) if ins.program == pubkeys::MAPLE => {
+            programs::maple::process_instruction(client, &ins.data, &ins.accounts, ins.slot).await
         },
 
         // Fallbacks

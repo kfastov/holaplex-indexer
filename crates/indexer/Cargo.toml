@@ -45,6 +45,7 @@ geyser = [
   "spl-token-bonding",
   "tribeca-govern",
   "tribeca-locked-voter",
+  "syrup-cpi",
   "indexer-rabbitmq/geyser",
   "indexer-rabbitmq/http-indexer",
   "indexer-rabbitmq/producer",
@@ -130,6 +131,7 @@ spl-token = { version = "~3.2.0", features = ["no-entrypoint"], optional = true 
 spl-token-bonding = { package = "spl-token-bonding", version = "3.2.5", features = ["no-entrypoint"], optional = true }
 tribeca-govern = { package = "govern", version = "0.5.5", features = ["no-entrypoint"], optional = true }
 tribeca-locked-voter = { package = "locked-voter", version = "0.5.5", features = ["no-entrypoint"], optional = true }
+syrup-cpi = { version = "0.2.0", features = ["no-entrypoint"], optional = true }
 
 # HTTP indexer
 cid = { version = "0.7.0", optional = true }

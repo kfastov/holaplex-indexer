@@ -209,8 +209,8 @@ async fn process_fungible(
     client: &Client,
     key: Pubkey,
     meta: &MetadataAccount,
-    slot: u64,
-    write_version: u64,
+    _slot: u64,
+    _write_version: u64,
 ) -> Result<()> {
     let probably_fungible =
         meta.token_standard == Some(TokenStandard::Fungible) || meta.token_standard == None;

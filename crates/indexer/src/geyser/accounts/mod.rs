@@ -14,6 +14,7 @@ pub mod govern;
 pub mod graph;
 pub mod hpl_reward_center;
 pub mod locked_voter;
+pub mod maple;
 pub mod metadata;
 pub mod mpl_store;
 pub mod name_service;

@@ -2,6 +2,7 @@ pub mod buy;
 pub mod cancel;
 pub mod deposit;
 pub mod execute_sale;
+pub mod maple;
 pub mod public_buy;
 pub mod sell;
 pub mod token;
